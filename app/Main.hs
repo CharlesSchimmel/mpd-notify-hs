@@ -2,4 +2,4 @@ module Main where
 
 import Lib
 
-main' = main
+main = mainLoop
