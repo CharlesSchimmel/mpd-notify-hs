@@ -7,17 +7,18 @@ module Lib
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-import Network.MPD
-import Data.Map.Strict as Map hiding (null)
-import System.Directory
-import System.FilePath.Posix
-import System.Process
-import Data.String.Utils
 import Control.Concurrent
 import Control.Monad
-import Libnotify
-import System.Exit
+import Control.Exception as Exc
 import Data.Either
+import Data.String.Utils
+import Libnotify
+import Network.MPD
+import System.Directory
+import System.Environment
+import System.FilePath
+import System.Process
+import Safe as Sf
 -- import Options.Generic
 
 data Cover = Cover { width :: Int, path :: String} deriving (Show, Ord, Eq)
@@ -30,76 +31,70 @@ data Cover = Cover { width :: Int, path :: String} deriving (Show, Ord, Eq)
 
 -- getCommonColor image = do
 --   readProcess "convert" [image,"-colors","2","-depth","8","-unique-colors","format
+--
 
-songAttr::Metadata -> Either a (Maybe Song) -> String
-songAttr meta song = maybe "<unkown>" (toString . head) (maybe Nothing (sgGetTag meta) (unwrap song))
+libraryDir = Sf.headMay <$> getArgs
+
+-- check tags for desired metadata. if exists, convert to String
+songAttr::Either a (Maybe Song) -> Metadata -> String
+songAttr song meta = maybe "<unkown>" (toString . head) (maybe Nothing (sgGetTag meta) (unwrap song))
   where unwrap = either (\x -> Nothing) id
 
 -- Maybe not best practice but MPD will (should) always return something for the filepath
 getDir::Either a (Maybe Song) -> FilePath
 getDir = either (\x -> "") (maybe "" (\z -> toString $ sgFilePath z))
 
--- get files also in the same folder as the song
-getNeighbors curSong = do
-  let basedir = (++ "/") $ takeDirectory $ "/home/elpfen/mus/" ++ getDir curSong 
-  neighbors <- getDirectoryContents basedir
-  return $ Prelude.map (basedir++) neighbors
+-- get files also in the same folder as the file
+getNeighbors path = do
+  doesExist <- libraryDir >>= (maybe (return False) doesPathExist)
+  if doesExist then (do
+               basedir <- maybe "" (</> takeDirectory path) <$> libraryDir
+               neighbors <- listDirectory basedir
+               return $ (basedir </>) <$> neighbors) else (return [])
 
-findCovers = Prelude.filter (endswith ".jpg")
+findCovers = filter (endswith ".jpg")
 
+-- eventually we'll find the largest of the images...
 getWidth file = do
   readProcess "identify" (["-format","%W",file]) ""
 
--- to us, whether it's not responding or paused/stopped doesn't matter
-curStat::Either a Status -> State
-curStat = either (\x -> Paused) (stState)
-
+-- eventually we'll find the largest of the images...
 padCover images 
   | null images = Nothing
   | otherwise = Just (maximum $ images)
 
-notifArt title artist album cover = do
-  display (summary (artist ++ " - " ++ title) <> body album <> icon cover)
+notifArt title artist album cover = display (summary (artist ++ " - " ++ title) <> body album <> icon cover)
 
-notifPlain title artist album = do
-  display (summary (artist ++ " - " ++ title) <> body album)
+notifPlain title artist album = display (summary (artist ++ " - " ++ title) <> body album)
 
-playingChanged :: Response(Status) -> Response(Status) -> Bool
-playingChanged old new = (curStat old) /= (curStat new)
-
--- mpdDetected::Response(Status) -> IO ()
-mpdDetected = do
-
-  cOldState <- withMPD $ status
-
-  withMPD $ idle [PlayerS]
-
+songNotif = do
   cSong <- withMPD $ currentSong
-  cNewState <- withMPD $ status
 
-  let curArtist = songAttr Artist cSong
-      curTitle = songAttr Title cSong
-      curAlbum = songAttr Album cSong
+  let [curArtist,curTitle,curAlbum] = (songAttr cSong) <$> [Artist,Title,Album]
 
-  neighbors <- getNeighbors cSong
-  let covers = findCovers neighbors
-
-  let cover = padCover covers
+  neighbors <- getNeighbors (getDir cSong)
+  let cover = padCover $ findCovers neighbors
 
   maybe (return ("No cover found") :: IO String) (\x -> readProcess "feh" ["--bg-tile",x] "") cover
+  maybe (notifPlain curTitle curArtist curAlbum) (notifArt curTitle curArtist curAlbum) cover
 
-  when (not $ playingChanged cOldState cNewState) . void $ maybe (notifPlain curTitle curArtist curAlbum) (notifArt curTitle curArtist curAlbum) cover
+-- unwrap the either, basically. Will only be left if not running.
+curStat = either (\x -> Stopped) (stState)
 
-  when (playingChanged cOldState cNewState) . void $ display (summary $ show $ curStat cNewState)
+statusNotif newState = do
+  display (summary $ show $ curStat newState)
 
-  return ()
-
+-- left: play state has changed. right: song has changed
+playerChange oldState newState 
+  | curStat oldState == curStat newState = songNotif
+  | otherwise =  statusNotif newState
 
 mainLoop = do
-  -- opts <- getRecord "MPD Notify"
-  -- putStrLn opts
+  oldState <- withMPD $ status
+  isIdle <- withMPD $ idle [PlayerS]
+  newState <- withMPD $ status
 
-  cOldState <- withMPD $ status
-  when (not (isLeft cOldState)) . void $ mpdDetected
+  -- left: mpd not running; pass. right: something changed
+  when (isRight isIdle) (void $ playerChange oldState newState)
 
   mainLoop

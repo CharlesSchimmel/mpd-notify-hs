@@ -24,6 +24,7 @@ library
                      , process
                      , directory
                      , MissingH
+                     , safe
   default-language:    Haskell2010
 
 executable mpd-notify-hs-exe
