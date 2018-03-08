@@ -34,6 +34,7 @@ data Cover = Cover { width :: Int, path :: String} deriving (Show, Ord, Eq)
 --
 
 libraryDir = Sf.headMay <$> getArgs
+libraryDirExists = libraryDir >>= (maybe (return False) doesPathExist)
 
 -- check tags for desired metadata. if exists, convert to String
 songAttr::Either a (Maybe Song) -> Metadata -> String
@@ -46,7 +47,7 @@ getDir = either (\x -> "") (maybe "" (\z -> toString $ sgFilePath z))
 
 -- get files also in the same folder as the file
 getNeighbors path = do
-  doesExist <- libraryDir >>= (maybe (return False) doesPathExist)
+  doesExist <- libraryDirExists
   if doesExist then (do
                basedir <- maybe "" (</> takeDirectory path) <$> libraryDir
                neighbors <- listDirectory basedir
@@ -89,12 +90,16 @@ playerChange oldState newState
   | curStat oldState == curStat newState = songNotif
   | otherwise =  statusNotif newState
 
-mainLoop = do
+subLoop = do
   oldState <- withMPD $ status
   isIdle <- withMPD $ idle [PlayerS]
   newState <- withMPD $ status
 
   -- left: mpd not running; pass. right: something changed
   when (isRight isIdle) (void $ playerChange oldState newState)
+  subLoop
 
-  mainLoop
+mainLoop = do
+  libDirExists <- libraryDirExists
+  when (not libDirExists) (putStrLn "Requires music library directory as argument. Album art won't work.")
+  subLoop
