@@ -6,9 +6,10 @@
 
 ## Requirements/How-To
 Requires Haskell/Stack, Feh, Libnotify\*
-` git clone https://github.com/charlesschimmel/mpd-notify-hs `
-` cd mpd-notify-hs `
-` stack install `
+
+    git clone https://github.com/charlesschimmel/mpd-notify-hs `
+    cd mpd-notify-hs `
+    stack install `
 
 
 
