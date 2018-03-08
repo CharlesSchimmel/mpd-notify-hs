@@ -7,9 +7,13 @@
 ## Requirements/How-To
 Requires Haskell/Stack, Feh, Libnotify\*
 
-    git clone https://github.com/charlesschimmel/mpd-notify-hs `
-    cd mpd-notify-hs `
-    stack install `
+### Install:
+    git clone https://github.com/charlesschimmel/mpd-notify-hs
+    cd mpd-notify-hs
+    stack install
+
+### Run:
+` mpd-notify-hs "your music directory here" `
 
 
 
