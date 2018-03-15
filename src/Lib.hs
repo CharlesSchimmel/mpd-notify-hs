@@ -8,8 +8,8 @@ module Lib
 {-# LANGUAGE OverloadedStrings #-}
 
 import Control.Concurrent
-import Control.Monad
 import Control.Exception as Exc
+import Control.Monad
 import Data.Either
 import Data.List
 import Data.Maybe
@@ -18,13 +18,13 @@ import Debug.Trace
 import Libnotify
 import Network.MPD
 import Options.Applicative
+import PathHelpers
+import Safe as Sf
 import System.Directory
 import System.Environment
 import System.FilePath
 import System.Path.NameManip
 import System.Process
-import Safe as Sf
-import PathHelpers
 
 data Opti = Opti
     { libPath :: FilePath
@@ -62,18 +62,15 @@ opts = info (opti <**> helper) (fullDesc <> progDesc "Display notifications for 
 -- check tags for desired metadata. if exists, convert to String
 songAttr::Either a (Maybe Song) -> Metadata -> String
 songAttr song meta = maybe "<unkown>" (toString . head) (maybe Nothing (sgGetTag meta) (unwrap song))
-  where unwrap = either (\x -> Nothing) id
+  where unwrap = either (\_ -> Nothing) id
 
 -- Maybe not best practice but MPD will (should) always return something for the filepath
 getDir::Either a (Maybe Song) -> FilePath
-getDir = either (\x -> "") (maybe "" (\z -> toString $ sgFilePath z))
+getDir = either (\_ -> "") (maybe "" (\z -> toString $ sgFilePath z))
 
 -- eventually we'll find the largest of the images...
 getWidth file = do
   readProcess "identify" (["-format","%W",file]) ""
-
-notifArt title artist album cover = display (summary (artist ++ " - " ++ title) <> body album <> icon cover)
-notifPlain title artist album = display (summary (artist ++ " - " ++ title) <> body album)
 
 changeWall::String->FilePath->IO String
 changeWall "tile" image = readProcess "feh" ["--bg-tile",image] ""
@@ -82,17 +79,23 @@ changeWall "stretch" image = readProcess "feh" ["--bg-maimage",image] ""
 changeWall "smart" image = readProcess "feh" ["--bg-tile",image] ""
 changeWall _ image = changeWall "tile" image
 
-songNotif = do
+songNotif::Maybe Notification -> IO Notification
+songNotif token = do
   cSong <- ($ currentSong) =<< mpdCon'
-  let [curArtist,curTitle,curAlbum] = (songAttr cSong) <$> [Artist,Title,Album]
-  neighbors <- getNeighbors =<< (</>(getDir cSong)) <$> libraryPath
-  let cover = padCover $ filter (endswith ".jpg") neighbors
-  maybe (return ("No cover found") :: IO String) (changeWall "tile") cover
-  maybe (notifPlain curTitle curArtist curAlbum) (notifArt curTitle curArtist curAlbum) cover
-    where padCover images | null images = Nothing | otherwise = Just (maximum $ images)
+  let [artist,title,album] = (songAttr cSong) <$> [Artist,Title,Album]
+      notifTemplate = summary (title ++ " - " ++ artist) <> body album
+  cover <- findArt =<< (</> (getDir cSong)) <$> libraryPath
+  let notif = maybe (notifTemplate) (\x -> notifTemplate <> icon x) cover
+  updateArt cover
+  maybe (display notif) (\x -> display $ reuse x <> notif) token
 
-statusNotif::Show a=> a -> IO Notification
-statusNotif state = display (summary $ show $ state)
+updateArt::Maybe FilePath -> IO String
+updateArt cover = do
+  maybe (return ("No cover found") :: IO String) (changeWall "tile") cover
+
+statusNotif::Show a=> a -> Maybe Notification -> IO Notification
+statusNotif state token = maybe (display (summary $ show $ state)) (\x -> display (reuse x <> (summary $ show $ state) <> body "")) token
+
 mpdCon host port = withMPD_ (Just host) (Just $ show port)
 mpdCon' = mpdBuilder <$> execParser opts 
   where mpdBuilder (Opti _ port host) = withMPD_ (Just host) (Just $ show port)
@@ -100,28 +103,24 @@ mpdCon' = mpdBuilder <$> execParser opts
 libraryPath::IO String
 libraryPath = absolutize =<< libPath <$> execParser opts
 
--- waitForChange::MonadMPD m=>(m a => IO (Response b))->IO Notification
-waitForChange mpdConnection = do
-  old <- curStat <$> ( mpdConnection $ status )
+waitForChange::MonadMPD f=>(f Status -> IO (Either a Status)) -> Maybe Notification -> IO Notification
+waitForChange mpdConnection notif = do
   new <- curStat <$> ( mpdConnection $ idle [PlayerS] *> status )
-  if (old == new) 
-     then songNotif
-     else statusNotif new
+  if (new /= Playing)
+     then statusNotif new notif
+     else songNotif notif
+    where curStat = either (\x -> Stopped) stState
 
-curStat = either (\x -> Stopped) (stState)
-
-mainLoop = do
-  libraryValid <- doesPathExist =<< libraryPath
-  when (not libraryValid) (putStrLn "Library path not found. Album art won't work.")
+subLoop::Maybe Notification -> IO ()
+subLoop notif = do
   args <- execParser opts
   let mpdConnection = mpdCon (host args) (port args)
   mpdStatus <- mpdConnection $ status
   if (isRight mpdStatus)
-     then waitForChange (mpdCon (host args) (port args)) >> mainLoop
+     then waitForChange mpdConnection notif >>= (\x -> subLoop (Just x))
      else putStrLn "Cannot connect to MPD. Check your host and port and make sure MPD is running."
 
-foo mpdCon = do
-  bar <- mpdCon currentSong
-  -- (baz,bar) <- mpdCon <$> (status,currentSong)
-  -- putStrLn baz
-  putStrLn bar
+mainLoop = do
+  libraryValid <- doesPathExist =<< libraryPath
+  when (not libraryValid) (putStrLn "Library path not found. Album art won't work.")
+  subLoop Nothing
