@@ -2,4 +2,5 @@ module Main where
 
 import Lib
 
-main = mainLoop
+main :: IO ()
+main = libMain
