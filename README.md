@@ -4,6 +4,9 @@
 * Automatic cover art detection.
 * Updates wallpaper on song change.
 
+![mpd-notify-screenshot.png](mpd-notify-screenshot.png)
+_I use [dunst](https://wiki.archlinux.org/index.php/Dunst). Your notifications may look slightly different._
+
 
 ## Install:
 Requires [Stack](https://docs.haskellstack.org/en/stable/README/), Feh, libnotify-dev, libghc-gtk-dev

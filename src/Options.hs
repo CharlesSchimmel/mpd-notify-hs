@@ -1,12 +1,13 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Options
   ( 
   opti
 , opts
 , Opti(..)
+, getOptions
   ) where
-
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 import Data.Monoid
 import Options.Applicative
@@ -44,3 +45,4 @@ opti = Opti
 opts :: ParserInfo Opti
 opts = info (opti <**> helper) (fullDesc <> progDesc "Display notifications for MPD" <> header "mpd-notify-hs - Notifcations, automatic wallpapers, and more for MPD")
 
+getOptions = execParser opts

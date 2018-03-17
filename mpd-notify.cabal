@@ -1,5 +1,5 @@
 name:                mpd-notify
-version:             0.1.0.0
+version:             0.0.8.0
 -- synopsis:
 -- description:
 homepage:            https://github.com/charlesschimmel/mpd-notify-hs
@@ -18,6 +18,7 @@ library
   exposed-modules:     Lib
                      , PathHelpers
                      , Options
+                     , Images
   build-depends:       base >= 4.7 && < 5
                      , libnotify
                      , libmpd
@@ -27,10 +28,10 @@ library
                      , safe
                      , optparse-applicative
                      , MissingH
-                     -- , containers
-                     -- , friday
-                     -- , friday-devil
-                     -- , vector
+                     , containers
+                     , friday
+                     , friday-juicypixels
+                     , JuicyPixels
   default-language:    Haskell2010
 
 executable mpd-notify

@@ -17,7 +17,6 @@ import Data.String.Utils
 import Debug.Trace
 import Libnotify
 import Network.MPD
-import Options.Applicative
 import Safe as Sf
 import System.Directory
 import System.Environment
@@ -27,27 +26,26 @@ import System.Process
 
 import PathHelpers
 import Options
-
--- eventually we'll find the largest of the images...
-getWidth file = do
-  readProcess "identify" (["-format","%W",file]) ""
+import Images
 
 changeWall :: String -> FilePath -> IO String
-changeWall "tile" image = readProcess "feh" ["--bg-tile",image] ""
 changeWall "center" image = readProcess "feh" ["--bg-center",image] ""
-changeWall "stretch" image = readProcess "feh" ["--bg-maimage",image] ""
+changeWall "fill" image = readProcess "feh" ["--bg-fill",image] ""
+changeWall "max" image = readProcess "feh" ["--bg-max",image] ""
+changeWall "scale" image = readProcess "feh" ["--bg-scale",image] ""
+changeWall "tile" image = readProcess "feh" ["--bg-tile",image] ""
 changeWall "smart" image = readProcess "feh" ["--bg-tile",image] ""
 changeWall _ image = changeWall "tile" image
 
 songNotif :: Maybe Notification -> IO Notification
 songNotif token = do
-  Right(Just(song)) <- ($ currentSong) =<< mpdCon'
-  cover <- findArt =<< (</> (toString $ sgFilePath song)) <$> libraryPath
-  updateArt cover
-  let notif = maybe (notifTemplate song <> icon "") (\x -> notifTemplate song <> icon x) cover
+  Right(Just(song)) <- ($ currentSong) =<< mpdCon' -- this is Maybe poor taste, but the way it's used there must be a Right, Just result
+  cover <- findLargestArt =<< (</> (toString $ sgFilePath song)) <$> libraryPath
+  let coverpath = filepath <$> cover
+  when (isJust cover) $ (void  ((\(Just x) -> changeWall "tile" x) coverpath))
+  let notif = maybe (notifTemplate song <> icon "") (\x -> notifTemplate song <> icon x) coverpath
   maybe (display notif) (\x -> display $ reuse x <> notif) token
 
--- check tags for desired metadata. if exists, convert to String
 songAttr :: Song -> Metadata -> String
 songAttr song meta = maybe "<unkown>" (toString . head) (sgGetTag meta song)
 
@@ -55,24 +53,23 @@ notifTemplate :: Song -> Libnotify.Mod Notification
 notifTemplate song = summary (title ++ " - " ++ artist) <> body album
   where [artist,title,album] = (songAttr song) <$> [Artist,Title,Album]
 
-updateArt :: Maybe FilePath -> IO String
-updateArt cover = maybe (return ("No cover found") :: IO String) (changeWall "tile") cover
+libraryPath :: IO String
+libraryPath = absolutize =<< libPath <$> getOptions
 
+-- if we already have a notification token, use it and clear the body (this has the pleasant side effect of also reusing the album art which is a nice touch.) Otherwise create one
 statusNotif :: Show a=> a -> Maybe Notification -> IO Notification
-statusNotif state token = maybe (display (summary $ show $ state)) (\x -> display (reuse x <> (summary $ show $ state) <> body "")) token
+statusNotif state token = maybe (display summ) (\x -> display (reuse x <> summ <> body "")) token
+  where summ = summary $ show $ state
 
 mpdCon :: String -> Int -> MPD a -> IO (Response a)
 mpdCon host port = withMPD_ (Just host) (Just $ show port)
 
-mpdCon' = mpdBuilder <$> execParser opts 
+mpdCon' = mpdBuilder <$> getOptions
   where mpdBuilder (Opti _ port host) = withMPD_ (Just host) (Just $ show port)
-
-libraryPath :: IO String
-libraryPath = absolutize =<< libPath <$> execParser opts
 
 waitForChange :: MonadMPD f=>(f Status -> IO (Either a Status)) -> Maybe Notification -> IO Notification
 waitForChange mpdConnection notif = do
-  new <- curStat <$> ( mpdConnection $ idle [PlayerS] *> status )
+  new <- curStat <$> ( mpdConnection $ idle [PlayerS] *> status ) -- wait for player change, and get status
   if (new /= Playing)
      then statusNotif new notif
      else songNotif notif
@@ -88,7 +85,7 @@ mainLoop notif args = do
 
 libMain :: IO()
 libMain = do
-  args <- execParser opts
+  args <- getOptions
   libraryValid <- doesPathExist =<< (absolutize $ libPath args)
   when (not libraryValid) (putStrLn "Library path not found. Album art won't work.")
   mainLoop Nothing args
