@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module PathHelpers
   ( 
   absolutize
@@ -6,16 +8,13 @@ module PathHelpers
 , findLargestArt
   ) where
 
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
-
+import Data.Char
+import Data.List
+import Data.Maybe
+import Data.String.Utils
 import System.Directory
 import System.FilePath
 import System.Path.NameManip
-import Data.Char
-import Data.Maybe
-import Data.List
-import Data.String.Utils
 
 import Images
 
@@ -43,22 +42,22 @@ getNeighbors file = do
 findArt :: FilePath -> IO (Maybe FilePath)
 findArt dir = do
   neighbors <- getNeighbors dir
-  let cover = padCover $ filter (isValidImgFormat) neighbors
+  let cover = padCover $ filter isValidImgFormat neighbors
   return cover
-    where padCover images | null images = Nothing | otherwise = Just (maximum $ images)
+    where padCover images | null images = Nothing | otherwise = Just (maximum images)
           strToLower = map toLower
 
 findLargestArt :: FilePath -> IO (Maybe Art)
 findLargestArt dir = do
   neighbors <- getNeighbors dir
-  let candidates = filter (isValidImgFormat) neighbors
+  let candidates = filter isValidImgFormat neighbors
   arts <- mapM findDimensions candidates
   if null arts
      then return Nothing
-     else return $ maximum $ arts
+     else return $ maximum arts
 
 isValidImgFormat :: FilePath -> Bool
-isValidImgFormat file = foldr (||) False $ flipMap loFile $ map endswith validImgFormats
+isValidImgFormat file = or $ flipMap loFile $ map endswith validImgFormats
   where loFile = map toLower file
         flipMap = map . flip ($)
         validImgFormats = [".jpeg",".png",".gif"]

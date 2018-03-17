@@ -43,7 +43,7 @@ getCommonColor image = do
           let histo = histogram (Just $ ix3 16 16 16) rgb1 :: Histogram DIM3 Int32
               -- pulls the tuple of (color frequency,(r,g,b,)) (aka assocs) from histo
               -- swap them so we can sort on the frequency, then take the highest
-              mostCommon = rgbVals $ last $ sort $ map swap $ assocs histo
+              mostCommon = rgbVals $ maximum $ map swap $ assocs histo
               -- foo = to256 mostCommon
           return $ to256 mostCommon
                     -- pull values from DIM3 and convert to 256 depth. 
@@ -56,8 +56,8 @@ findDimensions :: FilePath -> IO (Maybe Art)
 findDimensions imagePath = do
     image <- readImageWithMetadata imagePath
     case image of
-      (Right foo) -> do
-          return $ (Art imagePath) <$> (eitherIt $ pullDimns foo)
+      (Right foo) ->
+          return $ Art imagePath <$> eitherIt (pullDimns foo)
              where pullDimns (_,meta) = (toInteger <$> Meta.lookup Meta.Width meta, toInteger <$> Meta.lookup Meta.Height meta)
                    -- There HAS to be an applicative way of doing this
                    eitherIt (Just x, Just y) = Just (x,y)
