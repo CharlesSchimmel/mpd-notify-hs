@@ -34,6 +34,7 @@ opti = Opti
     <> showDefault
     <> value "localhost"
     <> metavar "STRING" )
+  -- subparser for background style flags?
   -- <*> option auto
   --   ( long "Background Style"
   --   <> help "Host of target MPD server"
