@@ -3,9 +3,10 @@
 module PathHelpers
   ( 
   absolutize
-, getNeighbors
 , findArt
 , findLargestArt
+-- , findLargestArt'
+, getNeighbors
   ) where
 
 import Data.Char
@@ -47,17 +48,24 @@ findArt dir = do
     where padCover images | null images = Nothing | otherwise = Just (maximum images)
           strToLower = map toLower
 
-findLargestArt :: FilePath -> IO (Maybe Art)
+-- findLargestArt' :: FilePath -> IO (Maybe Art)
+-- findLargestArt' dir = do
+--   neighbors <- getNeighbors dir
+--   let candidates = filter isValidImgFormat neighbors
+--   arts <- mapM findDimensions candidates
+--   if null arts
+--      then return Nothing
+--      else return $ maximum arts
+
+findLargestArt :: FilePath -> IO (Maybe Cover)
 findLargestArt dir = do
   neighbors <- getNeighbors dir
   let candidates = filter isValidImgFormat neighbors
-  arts <- mapM findDimensions candidates
-  if null arts
-     then return Nothing
-     else return $ maximum arts
+  loadedCandidates <- mapM loadImage candidates
+  return $ if null loadedCandidates then Nothing else maximum loadedCandidates
 
 isValidImgFormat :: FilePath -> Bool
 isValidImgFormat file = or $ flipMap loFile $ map endswith validImgFormats
   where loFile = map toLower file
         flipMap = map . flip ($)
-        validImgFormats = [".jpeg",".png",".gif"]
+        validImgFormats = [".jpg",".jpeg",".png",".gif"]

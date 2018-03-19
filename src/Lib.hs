@@ -6,6 +6,8 @@ module Lib
   ( libMain
   ) where
 
+import Codec.Picture
+import Control.Exception
 import Control.Monad
 import Data.Either
 import Data.Maybe
@@ -28,15 +30,26 @@ changeWall "tile" path = readProcess "feh" ["--bg-tile",path] ""
 changeWall "smart" path = readProcess "feh" ["--bg-tile",path] ""
 changeWall _ path = changeWall "tile" path
 
--- Maybe this should take the song as well and the decision tree for Right Just Song should be done at a higher level.
 songNotif :: Maybe Notification -> IO Notification
 songNotif token = do
   Right(Just song) <- ($ currentSong) =<< mpdCon' -- this is Maybe poor taste, but the way it's used there must be a Right, Just result
-  cover <- findLargestArt =<< (</> (toString $ sgFilePath song)) <$> libraryPath
-  let coverpath = filepath <$> cover
-  when (isJust cover) $ void ((\(Just x) -> changeWall "tile" x) coverpath)
+  foo <- findLargestArt =<< (</> (toString $ sgFilePath song)) <$> libraryPath
+  let coverpath = coverPath <$> foo
+  -- maybe (putStrLn "bar1") updateWall foo
+  when (isJust coverpath) $ void ((\(Just x) -> changeWall "tile" x) coverpath)
   let notif = maybe (notifTemplate song <> icon "") (\x -> notifTemplate song <> icon x) coverpath
   maybe (display notif) (\x -> display $ reuse x <> notif) token
+
+-- updateWall :: Cover -> IO ()
+updateWall cover = do
+  let (img,dim) = (coverImg cover,coverDimensions cover)
+  writePng "/tmp/mpd-notify-cover.png" $ matteImage (img,dim) (1920,1080)
+  changeWall "fill" "/tmp/mpd-notify-cover.png"
+  return ()
+  -- result <- try (writePng "/tmp/mpd-notify-cover.png" $ matteImage (img,dim) (1920,1080))
+  -- case result of
+  --   (Right _) -> void $ putStrLn $ "Error processing " ++ (show $ coverPath cover) ++ " \n Image smaller than headers reported. Headers may be corrupted."
+  --   _ -> void $ changeWall "fill" "/tmp/mpd-notify-cover.png"
 
 songAttr :: Song -> Metadata -> String
 songAttr song meta = maybe "<unkown>" (toString . head) (sgGetTag meta song)
