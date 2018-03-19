@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-9.3
+resolver: lts-10.3
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -40,7 +40,7 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 # extra-deps: [MissingH-1.4.0.1, ratio-int-0.1.2, friday-0.2.3.1, friday-juicypixels-0.1.2.3, JuicyPixels-3.2.9.5]
-extra-deps: [friday-0.2.3.1, friday-juicypixels-0.1.2.3, ratio-int-0.1.2]
+extra-deps: [friday-juicypixels-0.1.2.3, libnotify-0.2, gio-0.13.4.1, gtk-0.14.7]
 
 # Override default flag values for local packages and extra-deps
 flags: {}
