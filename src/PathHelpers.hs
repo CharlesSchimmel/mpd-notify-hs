@@ -5,7 +5,6 @@ module PathHelpers
   absolutize
 , findArt
 , findLargestArt
--- , findLargestArt'
 , getNeighbors
   ) where
 
@@ -29,7 +28,6 @@ absolutize apath
     return $ fromJust $ guess_dotdot pathMaybewithDots
 
 -- get files also in the same folder as the file
--- could possible also `try` this with fail condition `return []`
 -- TODO: convert to not care whether the given FilePath is a file or a dir
 getNeighbors :: String -> IO [FilePath]
 getNeighbors file = do
@@ -48,6 +46,12 @@ findArt dir = do
     where padCover images | null images = Nothing | otherwise = Just (maximum images)
           strToLower = map toLower
 
+isValidImgFormat :: FilePath -> Bool
+isValidImgFormat file = or $ flipMap loFile $ map endswith validImgFormats
+  where loFile = map toLower file
+        flipMap = map . flip ($)
+        validImgFormats = [".jpg",".jpeg",".png",".gif"]
+
 -- findLargestArt' :: FilePath -> IO (Maybe Art)
 -- findLargestArt' dir = do
 --   neighbors <- getNeighbors dir
@@ -61,11 +65,5 @@ findLargestArt :: FilePath -> IO (Maybe Cover)
 findLargestArt dir = do
   neighbors <- getNeighbors dir
   let candidates = filter isValidImgFormat neighbors
-  loadedCandidates <- mapM loadImage candidates
+  loadedCandidates <- mapM loadCover candidates
   return $ if null loadedCandidates then Nothing else maximum loadedCandidates
-
-isValidImgFormat :: FilePath -> Bool
-isValidImgFormat file = or $ flipMap loFile $ map endswith validImgFormats
-  where loFile = map toLower file
-        flipMap = map . flip ($)
-        validImgFormats = [".jpg",".jpeg",".png",".gif"]

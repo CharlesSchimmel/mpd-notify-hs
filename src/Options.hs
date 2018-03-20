@@ -2,14 +2,17 @@
 
 module Options
   ( 
-  opti
-, opts
-, Opti(..)
+  Opti(..)
+, opti
 , getOptions
+, libraryPath
+, opts
   ) where
 
 import Data.Monoid
 import Options.Applicative
+
+import PathHelpers
 
 data Opti = Opti
     { libPath :: FilePath
@@ -46,3 +49,6 @@ opts :: ParserInfo Opti
 opts = info (opti <**> helper) (fullDesc <> progDesc "Display notifications for MPD" <> header "mpd-notify-hs - Notifcations, automatic wallpapers, and more for MPD")
 
 getOptions = execParser opts
+
+libraryPath :: IO String
+libraryPath = absolutize =<< libPath <$> getOptions

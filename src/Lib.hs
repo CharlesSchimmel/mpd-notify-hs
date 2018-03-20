@@ -33,23 +33,18 @@ changeWall _ path = changeWall "tile" path
 songNotif :: Maybe Notification -> IO Notification
 songNotif token = do
   Right(Just song) <- ($ currentSong) =<< mpdCon' -- this is Maybe poor taste, but the way it's used there must be a Right, Just result
-  foo <- findLargestArt =<< (</> (toString $ sgFilePath song)) <$> libraryPath
-  let coverpath = coverPath <$> foo
+  foo <- findLargestArt =<< (</> (toString $ sgFilePath song)) <$> libraryPath -- Maybe Cover
+  let coverpath = coverPath <$> foo                                            -- Maybe FilePath
   -- maybe (putStrLn "bar1") updateWall foo
-  when (isJust coverpath) $ void ((\(Just x) -> changeWall "tile" x) coverpath)
+  when (isJust coverpath) $ void (changeWall "tile" $ fromJust coverpath)
   let notif = maybe (notifTemplate song <> icon "") (\x -> notifTemplate song <> icon x) coverpath
   maybe (display notif) (\x -> display $ reuse x <> notif) token
 
 -- updateWall :: Cover -> IO ()
 updateWall cover = do
-  let (img,dim) = (coverImg cover,coverDimensions cover)
-  writePng "/tmp/mpd-notify-cover.png" $ matteImage (img,dim) (1920,1080)
-  changeWall "fill" "/tmp/mpd-notify-cover.png"
+  writePng "/tmp/mpd-notify-cover.png" $ matteCover cover (1920,1080)
+  changeWall "center" "/tmp/mpd-notify-cover.png"
   return ()
-  -- result <- try (writePng "/tmp/mpd-notify-cover.png" $ matteImage (img,dim) (1920,1080))
-  -- case result of
-  --   (Right _) -> void $ putStrLn $ "Error processing " ++ (show $ coverPath cover) ++ " \n Image smaller than headers reported. Headers may be corrupted."
-  --   _ -> void $ changeWall "fill" "/tmp/mpd-notify-cover.png"
 
 songAttr :: Song -> Metadata -> String
 songAttr song meta = maybe "<unkown>" (toString . head) (sgGetTag meta song)
@@ -58,10 +53,7 @@ notifTemplate :: Song -> Libnotify.Mod Notification
 notifTemplate song = summary (title ++ " - " ++ artist) <> body album
   where [artist,title,album] = songAttr song <$> [Artist,Title,Album]
 
-libraryPath :: IO String
-libraryPath = absolutize =<< libPath <$> getOptions
-
--- if we already have a notification token, use it and clear the body (this has the pleasant side effect of also reusing the album art which is a nice touch.) Otherwise create one
+-- if we already have a notification token, use it and clear the body.
 statusNotif :: Show a=> a -> Maybe Notification -> IO Notification
 statusNotif state = maybe (display summ) (\x -> display (reuse x <> summ <> body ""))
   where summ = summary $ show state
@@ -69,6 +61,7 @@ statusNotif state = maybe (display summ) (\x -> display (reuse x <> summ <> body
 mpdCon :: String -> Int -> MPD a -> IO (Response a)
 mpdCon h p = withMPD_ (Just h) (Just $ show p)
 
+-- Sort of a factory for building mpd connections
 mpdCon' :: IO (MPD a -> IO (Response a))
 mpdCon' = mpdBuilder <$> getOptions
   where mpdBuilder (Opti _ p h) = withMPD_ (Just h) (Just $ show p)
@@ -79,15 +72,17 @@ waitForChange mpdConnection notif = do
   if new /= Playing
      then statusNotif new notif
      else songNotif notif
-    where curStat = either ( const Stopped) stState
+    where curStat = either (const Stopped) stState
 
 mainLoop :: Maybe Notification -> Opti -> IO ()
 mainLoop notif args = do
   let mpdConnection = mpdCon (host args) (port args)
   mpdStatus <- mpdConnection status
-  if isRight mpdStatus then waitForChange mpdConnection notif >>= (\x -> mainLoop (Just x) args)
+  if isRight mpdStatus
+     then waitForChange mpdConnection notif >>= (\x -> mainLoop (Just x) args)
      else putStrLn "Cannot connect to MPD. Check your host and port and make sure MPD is running."
 
+-- "Do once"
 libMain :: IO()
 libMain = do
   args <- getOptions
