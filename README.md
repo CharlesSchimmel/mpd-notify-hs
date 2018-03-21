@@ -4,7 +4,8 @@
 * Automatic cover art detection.
 * Updates wallpaper on song change.
 
-![mpd-notify-screenshot.png](mpd-notify-screenshot.png)
+![mpd-notify-centered.png](mpd-notify-centered.png)
+![mpd-notify-tiled.png](mpd-notify-tiled.png)
 
 _I use [dunst](https://wiki.archlinux.org/index.php/Dunst). Your notifications may look slightly different._
 
