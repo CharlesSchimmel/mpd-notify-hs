@@ -7,7 +7,6 @@ module Lib
   ) where
 
 import Codec.Picture
-import Control.Exception
 import Control.Monad
 import Data.Either
 import Data.Maybe
@@ -21,30 +20,29 @@ import PathHelpers
 import Options
 import Images
 
-changeWall :: String -> FilePath -> IO String
-changeWall "center" path = readProcess "feh" ["--bg-center",path] ""
-changeWall "fill" path = readProcess "feh" ["--bg-fill",path] ""
-changeWall "max" path = readProcess "feh" ["--bg-max",path] ""
-changeWall "scale" path = readProcess "feh" ["--bg-scale",path] ""
-changeWall "tile" path = readProcess "feh" ["--bg-tile",path] ""
-changeWall "smart" path = readProcess "feh" ["--bg-tile",path] ""
-changeWall _ path = changeWall "tile" path
+changeWall :: BGStyle -> FilePath -> IO String
+changeWall Center path = readProcess "feh" ["--bg-center",path] ""
+changeWall Tile   path = readProcess "feh" ["--bg-tile",path] ""
+changeWall _      path = changeWall Center path
+
+tmpImgPath :: FilePath
+tmpImgPath = "/tmp/mpd-notify-cover.png"
 
 songNotif :: Maybe Notification -> IO Notification
 songNotif token = do
   Right(Just song) <- ($ currentSong) =<< mpdCon' -- this is Maybe poor taste, but the way it's used there must be a Right, Just result
-  foo <- findLargestArt =<< (</> (toString $ sgFilePath song)) <$> libraryPath -- Maybe Cover
-  let coverpath = coverPath <$> foo                                            -- Maybe FilePath
-  -- maybe (putStrLn "bar1") updateWall foo
-  when (isJust coverpath) $ void (changeWall "tile" $ fromJust coverpath)
-  let notif = maybe (notifTemplate song <> icon "") (\x -> notifTemplate song <> icon x) coverpath
+  cover <- findLargestArt =<< (</> (toString $ sgFilePath song)) <$> libraryPath -- Maybe Cover
+  when (isJust cover) $ void (updateWall $ fromJust cover)
+  let notif = maybe (notifTemplate song <> icon "") (\x -> notifTemplate song <> icon x) (coverPath <$> cover)
   maybe (display notif) (\x -> display $ reuse x <> notif) token
 
--- updateWall :: Cover -> IO ()
+updateWall :: Cover -> IO ()
 updateWall cover = do
-  writePng "/tmp/mpd-notify-cover.png" $ matteCover cover (1920,1080)
-  changeWall "center" "/tmp/mpd-notify-cover.png"
-  return ()
+  bg <- bgStyle <$> getOptions
+  case bg of
+    Tile -> void $ changeWall bg $ coverPath cover
+    Center -> void $ (writePng tmpImgPath $ matteCover cover (1920,1080)) >> changeWall Center tmpImgPath
+    _ -> return ()
 
 songAttr :: Song -> Metadata -> String
 songAttr song meta = maybe "<unkown>" (toString . head) (sgGetTag meta song)
@@ -57,9 +55,6 @@ notifTemplate song = summary (title ++ " - " ++ artist) <> body album
 statusNotif :: Show a=> a -> Maybe Notification -> IO Notification
 statusNotif state = maybe (display summ) (\x -> display (reuse x <> summ <> body ""))
   where summ = summary $ show state
-
-mpdCon :: String -> Int -> MPD a -> IO (Response a)
-mpdCon h p = withMPD_ (Just h) (Just $ show p)
 
 -- Sort of a factory for building mpd connections
 mpdCon' :: IO (MPD a -> IO (Response a))
@@ -76,7 +71,7 @@ waitForChange mpdConnection notif = do
 
 mainLoop :: Maybe Notification -> Opti -> IO ()
 mainLoop notif args = do
-  let mpdConnection = mpdCon (host args) (port args)
+  mpdConnection <- mpdCon'
   mpdStatus <- mpdConnection status
   if isRight mpdStatus
      then waitForChange mpdConnection notif >>= (\x -> mainLoop (Just x) args)

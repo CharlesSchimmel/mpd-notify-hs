@@ -10,7 +10,6 @@ module Options
 , opts
   ) where
 
-import Data.Char
 import Data.Monoid
 import Options.Applicative
 
@@ -54,6 +53,7 @@ opti = Opti
 opts :: ParserInfo Opti
 opts = info (opti <**> helper) (fullDesc <> progDesc "Notifications for MPD" <> header "mpd-notify-hs - Notifcations, automatic wallpapers, and more for MPD")
 
+getOptions :: IO Opti
 getOptions = customExecParser (prefs $ columns 200) opts
 
 libraryPath :: IO String
