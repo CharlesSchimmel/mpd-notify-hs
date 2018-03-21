@@ -64,7 +64,7 @@ mpdCon h p = withMPD_ (Just h) (Just $ show p)
 -- Sort of a factory for building mpd connections
 mpdCon' :: IO (MPD a -> IO (Response a))
 mpdCon' = mpdBuilder <$> getOptions
-  where mpdBuilder (Opti _ p h) = withMPD_ (Just h) (Just $ show p)
+  where mpdBuilder opt = withMPD_ (Just $ host opt) (Just $ show $ port opt)
 
 waitForChange :: MonadMPD f=>(f Status -> IO (Either a Status)) -> Maybe Notification -> IO Notification
 waitForChange mpdConnection notif = do

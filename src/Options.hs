@@ -2,13 +2,15 @@
 
 module Options
   ( 
-  Opti(..)
-, opti
+  BGType(..)
+, Opti(..)
 , getOptions
 , libraryPath
+, opti
 , opts
   ) where
 
+import Data.Char
 import Data.Monoid
 import Options.Applicative
 
@@ -17,7 +19,12 @@ import PathHelpers
 data Opti = Opti
     { libPath :: FilePath
     , port :: Int
-    , host :: String }
+    , host :: String
+    , bgType :: BGType
+    }
+
+data BGType = Center | Tile | Fill | Max | Scale | None
+  deriving ( Read, Show )
 
 opti :: Parser Opti
 opti = Opti
@@ -37,18 +44,17 @@ opti = Opti
     <> showDefault
     <> value "localhost"
     <> metavar "STRING" )
-  -- subparser for background style flags?
-  -- <*> option auto
-  --   ( long "Background Style"
-  --   <> help "Host of target MPD server"
-  --   <> showDefault
-  --   <> value "localhost"
-  --   <> metavar "STRING" )
+  <*> option auto
+    ( long "bgtype"
+    <> help "Fill type for displaying the album art as a background"
+    <> showDefault
+    <> value Center
+    <> metavar "Center|Tile|None" )
 
 opts :: ParserInfo Opti
-opts = info (opti <**> helper) (fullDesc <> progDesc "Display notifications for MPD" <> header "mpd-notify-hs - Notifcations, automatic wallpapers, and more for MPD")
+opts = info (opti <**> helper) (fullDesc <> progDesc "Notifications for MPD" <> header "mpd-notify-hs - Notifcations, automatic wallpapers, and more for MPD")
 
-getOptions = execParser opts
+getOptions = customExecParser (prefs $ columns 200) opts
 
 libraryPath :: IO String
 libraryPath = absolutize =<< libPath <$> getOptions
