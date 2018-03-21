@@ -2,7 +2,8 @@
 
 * Notifications on song change, play, and pause.
 * Automatic cover art detection.
-* Updates wallpaper on song change.
+* Optionally updates wallpaper on song change to album artwork.
+* Centers album art with a thematically colored backdrop
 
 ![mpd-notify-centered.png](mpd-notify-centered.png)
 ![mpd-notify-tiled.png](mpd-notify-tiled.png)
