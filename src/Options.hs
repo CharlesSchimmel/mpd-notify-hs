@@ -2,7 +2,7 @@
 
 module Options
   ( 
-  BGType(..)
+  BGStyle(..)
 , Opti(..)
 , getOptions
 , libraryPath
@@ -20,10 +20,10 @@ data Opti = Opti
     { libPath :: FilePath
     , port :: Int
     , host :: String
-    , bgType :: BGType
+    , bgStyle :: BGStyle
     }
 
-data BGType = Center | Tile | Fill | Max | Scale | None
+data BGStyle = Center | Tile | Fill | Max | Scale | None
   deriving ( Read, Show )
 
 opti :: Parser Opti
@@ -45,7 +45,7 @@ opti = Opti
     <> value "localhost"
     <> metavar "STRING" )
   <*> option auto
-    ( long "bgtype"
+    ( long "bg-style"
     <> help "Fill type for displaying the album art as a background"
     <> showDefault
     <> value Center
